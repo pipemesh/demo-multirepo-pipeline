@@ -1,0 +1,111 @@
+# Three repositories, one pipeline. This repository holds only the pipeline;
+# the code lives in the two repositories it declares:
+#
+#   orders   the orders service, and the client library other services use
+#   billing  a service that calls orders through that client library
+#
+# The client library crosses repositories as an artifact: orders_client
+# builds it once and produces the jar, and billing's build consumes it. A
+# change to the client rebuilds billing against the new jar; a change to the
+# orders service alone leaves billing alone.
+#
+# Every revision pins a commit of each repository, and a push to either one
+# starts a revision on its own.
+
+common:
+  # A JDK with the bash, curl and tar a hosted job needs, pinned.
+  jdk: maven:3-eclipse-temurin-25@sha256:93b8a14ea2f412782e4e842651273b4d903e35cc496284f178fbbe2d67d00976
+
+pipeline:
+  repos:
+    orders: github.com/pipemesh/demo-multirepo-orders
+    billing: github.com/pipemesh/demo-multirepo-billing
+  stages: [build, staging, production]
+  jobs:
+    # The client library, from orders' client/ directory only.
+    orders_client:
+      stage: build
+      repo: orders
+      paths: [client]
+      skip: built
+      image: !ref common.jdk
+      script: |
+        javac -g:none -d out/classes $(find client/src -name '*.java')
+        # No debug info and a fixed timestamp make the jar byte-reproducible:
+        # sources that compile to the same classes give the same jar, and
+        # billing, which consumes it, is not rebuilt.
+        jar --create --date=2026-01-01T00:00:00Z --file out/orders-client.jar -C out/classes .
+      produces:
+        jar: out/orders-client.jar
+
+    # The orders service, built with the client sources it shares a model with.
+    orders:
+      stage: build
+      repo: orders
+      paths: [client, service]
+      skip: built
+      image: !ref common.jdk
+      script: |
+        javac -g:none -d out/classes $(find client/src service/src -name '*.java')
+        jar --create --date=2026-01-01T00:00:00Z --file out/orders.jar \
+          --main-class dev.pipemesh.demo.orders.OrdersService -C out/classes .
+        java -jar out/orders.jar --self-test
+      produces:
+        jar: out/orders.jar
+
+    # Billing, in its own repository, built against the client jar orders
+    # produced. It never reads orders' sources.
+    billing:
+      stage: build
+      repo: billing
+      paths: [src]
+      skip: built
+      consumes: [orders_client/jar]
+      image: !ref common.jdk
+      script: |
+        echo "building against $PIPEMESH_ORDERS_CLIENT_JAR"
+        javac -g:none -cp "$PIPEMESH_ORDERS_CLIENT_JAR" -d out/classes $(find src -name '*.java')
+        # Ship the client inside billing's jar.
+        (cd out/classes && jar --extract --file "../../$PIPEMESH_ORDERS_CLIENT_JAR" && rm -rf META-INF)
+        jar --create --date=2026-01-01T00:00:00Z --file out/billing.jar \
+          --main-class dev.pipemesh.demo.billing.Billing -C out/classes .
+        java -jar out/billing.jar --self-test
+      produces:
+        jar: out/billing.jar
+
+    # Each deploy reads only the jar it ships: it runs when the jar is new
+    # to it, and skips an identical one.
+    deploy_orders_staging:
+      stage: staging
+      consumes: [orders/jar]
+      paths: []
+      image: !ref common.jdk
+      script: |
+        java -jar "$PIPEMESH_ORDERS_JAR" --self-test
+        echo "orders → staging"
+    deploy_billing_staging:
+      stage: staging
+      consumes: [billing/jar]
+      paths: []
+      image: !ref common.jdk
+      script: |
+        java -jar "$PIPEMESH_BILLING_JAR" --self-test
+        echo "billing → staging"
+    deploy_orders_prod:
+      stage: production
+      needs: [deploy_orders_staging]
+      consumes: [orders/jar]
+      paths: []
+      image: !ref common.jdk
+      script: echo "orders → production"
+    deploy_billing_prod:
+      stage: production
+      needs: [deploy_billing_staging]
+      consumes: [billing/jar]
+      paths: []
+      image: !ref common.jdk
+      script: echo "billing → production"
+
+pipemesh:
+  pipelines:
+    pipeline: !ref pipeline
