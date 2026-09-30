@@ -25,3 +25,5 @@ orders' sources.
 
 Every revision pins one commit of each repository, and a push to any of
 the three starts a revision.
+
+The [PipeMesh docs](https://pipemesh.dev/docs/pipeline-yaml) describe `repos:`, `repo:` and `consumes:`.
