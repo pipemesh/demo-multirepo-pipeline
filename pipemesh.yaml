@@ -75,14 +75,6 @@ pipeline:
 
     # Each deploy reads only the jar it ships: it runs when the jar is new
     # to it, and skips an identical one.
-    deploy_orders_staging:
-      stage: staging
-      consumes: [orders/jar]
-      paths: []
-      image: !ref common.jdk
-      script: |
-        java -jar "$PIPEMESH_ORDERS_JAR" --self-test
-        echo "orders → staging"
     deploy_billing_staging:
       stage: staging
       consumes: [billing/jar]
@@ -91,13 +83,14 @@ pipeline:
       script: |
         java -jar "$PIPEMESH_BILLING_JAR" --self-test
         echo "billing → staging"
-    deploy_orders_prod:
-      stage: production
-      needs: [deploy_orders_staging]
+    deploy_orders_staging:
+      stage: staging
       consumes: [orders/jar]
       paths: []
       image: !ref common.jdk
-      script: echo "orders → production"
+      script: |
+        java -jar "$PIPEMESH_ORDERS_JAR" --self-test
+        echo "orders → staging"
     deploy_billing_prod:
       stage: production
       needs: [deploy_billing_staging]
@@ -105,6 +98,13 @@ pipeline:
       paths: []
       image: !ref common.jdk
       script: echo "billing → production"
+    deploy_orders_prod:
+      stage: production
+      needs: [deploy_orders_staging]
+      consumes: [orders/jar]
+      paths: []
+      image: !ref common.jdk
+      script: echo "orders → production"
 
 pipemesh:
   pipelines:
