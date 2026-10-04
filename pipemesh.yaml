@@ -88,6 +88,7 @@ pipeline:
     # one.
     deploy_billing_staging:
       job_type: deploy
+      production: false
       stage: staging
       consumes:
         - billing/jar
@@ -97,6 +98,7 @@ pipeline:
         echo "billing → staging"
     deploy_orders_staging:
       job_type: deploy
+      production: false
       stage: staging
       consumes:
         - orders/jar
@@ -106,6 +108,7 @@ pipeline:
         echo "orders → staging"
     deploy_billing_prod:
       job_type: deploy
+      production: true
       stage: production
       needs:
         - deploy_billing_staging
@@ -115,6 +118,7 @@ pipeline:
       script: echo "billing → production"
     deploy_orders_prod:
       job_type: deploy
+      production: true
       stage: production
       needs:
         - deploy_orders_staging
