@@ -15,7 +15,7 @@ orders' sources.
 
 Each build says what it checks out in the repository it works in
 (`repo: orders` with `checkout: [client]`), and gets exactly that; the
-deploys are `kind: deploy` and check out nothing, so the jar they consume
+deploys are `job_type: deploy` and check out nothing, so the jar they consume
 is their only input.
 
 ## What runs

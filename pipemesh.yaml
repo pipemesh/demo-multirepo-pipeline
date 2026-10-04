@@ -17,18 +17,23 @@ common:
   jdk: maven:3-eclipse-temurin-25@sha256:93b8a14ea2f412782e4e842651273b4d903e35cc496284f178fbbe2d67d00976
 
 pipeline:
+  type: pipeline
   repos:
     orders: github.com/pipemesh/demo-multirepo-orders
     billing: github.com/pipemesh/demo-multirepo-billing
-  stages: [build, staging, production]
+  stages:
+    - build
+    - staging
+    - production
   jobs:
     # The client library, from orders' client/ directory only: the job
     # works in orders, so its checkout is orders' client/.
     orders_client:
-      kind: build
+      job_type: build
       stage: build
       repo: orders
-      checkout: [client]
+      checkout:
+        - client
       image: !ref common.jdk
       script: |
         javac -g:none -d out/classes $(find client/src -name '*.java')
@@ -41,10 +46,12 @@ pipeline:
 
     # The orders service, built with the client sources it shares a model with.
     orders:
-      kind: build
+      job_type: build
       stage: build
       repo: orders
-      checkout: [client, service]
+      checkout:
+        - client
+        - service
       image: !ref common.jdk
       script: |
         javac -g:none -d out/classes $(find client/src service/src -name '*.java')
@@ -57,11 +64,13 @@ pipeline:
     # Billing, in its own repository, built against the client jar orders
     # produced. It never reads orders' sources.
     billing:
-      kind: build
+      job_type: build
       stage: build
       repo: billing
-      checkout: [src]
-      consumes: [orders_client/jar]
+      checkout:
+        - src
+      consumes:
+        - orders_client/jar
       image: !ref common.jdk
       script: |
         echo "building against $PIPEMESH_ORDERS_CLIENT_JAR"
@@ -78,33 +87,39 @@ pipeline:
     # nothing): it runs when the jar is new to it, and skips an identical
     # one.
     deploy_billing_staging:
-      kind: deploy
+      job_type: deploy
       stage: staging
-      consumes: [billing/jar]
+      consumes:
+        - billing/jar
       image: !ref common.jdk
       script: |
         java -jar "$PIPEMESH_BILLING_JAR" --self-test
         echo "billing → staging"
     deploy_orders_staging:
-      kind: deploy
+      job_type: deploy
       stage: staging
-      consumes: [orders/jar]
+      consumes:
+        - orders/jar
       image: !ref common.jdk
       script: |
         java -jar "$PIPEMESH_ORDERS_JAR" --self-test
         echo "orders → staging"
     deploy_billing_prod:
-      kind: deploy
+      job_type: deploy
       stage: production
-      needs: [deploy_billing_staging]
-      consumes: [billing/jar]
+      needs:
+        - deploy_billing_staging
+      consumes:
+        - billing/jar
       image: !ref common.jdk
       script: echo "billing → production"
     deploy_orders_prod:
-      kind: deploy
+      job_type: deploy
       stage: production
-      needs: [deploy_orders_staging]
-      consumes: [orders/jar]
+      needs:
+        - deploy_orders_staging
+      consumes:
+        - orders/jar
       image: !ref common.jdk
       script: echo "orders → production"
 
