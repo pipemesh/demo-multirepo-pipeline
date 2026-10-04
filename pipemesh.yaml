@@ -22,12 +22,13 @@ pipeline:
     billing: github.com/pipemesh/demo-multirepo-billing
   stages: [build, staging, production]
   jobs:
-    # The client library, from orders' client/ directory only.
+    # The client library, from orders' client/ directory only: the job
+    # works in orders, so its checkout is orders' client/.
     orders_client:
+      kind: build
       stage: build
       repo: orders
-      paths: [client]
-      skip: built
+      checkout: [client]
       image: !ref common.jdk
       script: |
         javac -g:none -d out/classes $(find client/src -name '*.java')
@@ -40,10 +41,10 @@ pipeline:
 
     # The orders service, built with the client sources it shares a model with.
     orders:
+      kind: build
       stage: build
       repo: orders
-      paths: [client, service]
-      skip: built
+      checkout: [client, service]
       image: !ref common.jdk
       script: |
         javac -g:none -d out/classes $(find client/src service/src -name '*.java')
@@ -56,10 +57,10 @@ pipeline:
     # Billing, in its own repository, built against the client jar orders
     # produced. It never reads orders' sources.
     billing:
+      kind: build
       stage: build
       repo: billing
-      paths: [src]
-      skip: built
+      checkout: [src]
       consumes: [orders_client/jar]
       image: !ref common.jdk
       script: |
@@ -73,36 +74,37 @@ pipeline:
       produces:
         jar: out/billing.jar
 
-    # Each deploy reads only the jar it ships: it runs when the jar is new
-    # to it, and skips an identical one.
+    # Each deploy reads only the jar it ships (a deploy checks out
+    # nothing): it runs when the jar is new to it, and skips an identical
+    # one.
     deploy_billing_staging:
+      kind: deploy
       stage: staging
       consumes: [billing/jar]
-      paths: []
       image: !ref common.jdk
       script: |
         java -jar "$PIPEMESH_BILLING_JAR" --self-test
         echo "billing → staging"
     deploy_orders_staging:
+      kind: deploy
       stage: staging
       consumes: [orders/jar]
-      paths: []
       image: !ref common.jdk
       script: |
         java -jar "$PIPEMESH_ORDERS_JAR" --self-test
         echo "orders → staging"
     deploy_billing_prod:
+      kind: deploy
       stage: production
       needs: [deploy_billing_staging]
       consumes: [billing/jar]
-      paths: []
       image: !ref common.jdk
       script: echo "billing → production"
     deploy_orders_prod:
+      kind: deploy
       stage: production
       needs: [deploy_orders_staging]
       consumes: [orders/jar]
-      paths: []
       image: !ref common.jdk
       script: echo "orders → production"
 
