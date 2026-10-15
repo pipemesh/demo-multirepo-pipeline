@@ -70,13 +70,13 @@ pipeline:
       checkout:
         - src
       consumes:
-        - orders_client/jar
+        ORDERS_CLIENT_JAR: orders_client/jar
       image: !ref common.jdk
       script: |
-        echo "building against $PIPEMESH_ORDERS_CLIENT_JAR"
-        javac -g:none -cp "$PIPEMESH_ORDERS_CLIENT_JAR" -d out/classes $(find src -name '*.java')
+        echo "building against $ORDERS_CLIENT_JAR"
+        javac -g:none -cp "$ORDERS_CLIENT_JAR" -d out/classes $(find src -name '*.java')
         # Ship the client inside billing's jar.
-        (cd out/classes && jar --extract --file "../../$PIPEMESH_ORDERS_CLIENT_JAR" && rm -rf META-INF)
+        (cd out/classes && jar --extract --file "../../$ORDERS_CLIENT_JAR" && rm -rf META-INF)
         jar --create --date=2026-01-01T00:00:00Z --file out/billing.jar \
           --main-class dev.pipemesh.demo.billing.Billing -C out/classes .
         java -jar out/billing.jar --self-test
@@ -91,20 +91,20 @@ pipeline:
       production: false
       stage: staging
       consumes:
-        - billing/jar
+        BILLING_JAR: billing/jar
       image: !ref common.jdk
       script: |
-        java -jar "$PIPEMESH_BILLING_JAR" --self-test
+        java -jar "$BILLING_JAR" --self-test
         echo "billing → staging"
     deploy_orders_staging:
       job_type: deploy
       production: false
       stage: staging
       consumes:
-        - orders/jar
+        ORDERS_JAR: orders/jar
       image: !ref common.jdk
       script: |
-        java -jar "$PIPEMESH_ORDERS_JAR" --self-test
+        java -jar "$ORDERS_JAR" --self-test
         echo "orders → staging"
     deploy_billing_prod:
       job_type: deploy
@@ -113,7 +113,7 @@ pipeline:
       needs:
         - deploy_billing_staging
       consumes:
-        - billing/jar
+        BILLING_JAR: billing/jar
       image: !ref common.jdk
       script: echo "billing → production"
     deploy_orders_prod:
@@ -123,7 +123,7 @@ pipeline:
       needs:
         - deploy_orders_staging
       consumes:
-        - orders/jar
+        ORDERS_JAR: orders/jar
       image: !ref common.jdk
       script: echo "orders → production"
 
