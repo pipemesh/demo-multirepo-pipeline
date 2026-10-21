@@ -19,8 +19,8 @@ common:
 pipeline:
   type: pipeline
   repos:
-    orders: github.com/pipemesh/demo-multirepo-orders
-    billing: github.com/pipemesh/demo-multirepo-billing
+    orders: github.com/pipemesh/demo-multirepo-orders@main
+    billing: github.com/pipemesh/demo-multirepo-billing@main
   stages:
     - build
     - staging
